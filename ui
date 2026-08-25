@@ -1,18 +1,5 @@
--- ============================================
--- ФАЙЛ 1: Library.lua (заливаешь на GitHub)
--- ============================================
-
-local Kavo = {}
-local tween = game:GetService("TweenService")
+local Scrp = {}
 local input = game:GetService("UserInputService")
-
-local themes = {
-    SchemeColor = Color3.fromRGB(255, 255, 255),
-    Background  = Color3.fromRGB(10, 10, 10),
-    Header      = Color3.fromRGB(15, 15, 15),
-    TextColor   = Color3.fromRGB(255, 255, 255),
-    ElementColor= Color3.fromRGB(20, 20, 20)
-}
 
 local function create(class, props)
     local o = Instance.new(class)
@@ -41,372 +28,35 @@ local function DraggingEnabled(frame, parent)
     end)
 end
 
-function Kavo.CreateLib(libName, theme)
-    theme = theme or themes
-    for k,v in pairs(themes) do if theme[k] == nil then theme[k] = v end end
-
-    local LibId = "Kavo_" .. tostring(math.random(1,999999))
+function Scrp.CreateLib()
+    local LibId = "Scrp_" .. tostring(math.random(1,999999))
     for _,v in pairs(game.CoreGui:GetChildren()) do
         if v.Name == LibId then v:Destroy() end
     end
 
-    local ScreenGui = create("ScreenGui", {Name = LibId, Parent = game.CoreGui, ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling})
+    local ScreenGui = create("ScreenGui", {
+        Name = LibId, Parent = game.CoreGui,
+        ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    })
 
-    -- === ГЛАВНОЕ ОКНО (шире, ниже) ===
     local Main = create("Frame", {
         Name = "Main", Parent = ScreenGui,
-        BackgroundColor3 = theme.Background,
+        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
         Position = UDim2.new(0.5, -300, 0.5, -140),
         Size = UDim2.new(0, 600, 0, 280)
     })
     create("UICorner", {CornerRadius = UDim.new(0,6), Parent = Main})
 
-    local Header = create("Frame", {
-        Name = "Header", Parent = Main,
-        BackgroundColor3 = theme.Header,
-        Size = UDim2.new(1, 0, 0, 28)
-    })
-    create("UICorner", {CornerRadius = UDim.new(0,6), Parent = Header})
-    create("Frame", {Parent = Header, BackgroundColor3 = theme.Header, BorderSizePixel = 0, Position = UDim2.new(0,0,0.6,0), Size = UDim2.new(1,0,0.4,0)})
+    DraggingEnabled(Main, Main)
 
-    local Title = create("TextLabel", {
-        Parent = Header, BackgroundTransparency = 1,
-        Position = UDim2.new(0, 12, 0, 0), Size = UDim2.new(1, -24, 1, 0),
-        Font = Enum.Font.GothamBold, Text = libName or "UI",
-        TextColor3 = theme.TextColor, TextSize = 14,
-        TextXAlignment = Enum.TextXAlignment.Left
-    })
-
-    DraggingEnabled(Header, Main)
-
-    -- Открытие/закрытие окна кнопкой + клавишей
-    local visible = true
-    local function ToggleWindow()
-        visible = not visible
-        tween:Create(Main, TweenInfo.new(0.2), {
-            Size = visible and UDim2.new(0,600,0,280) or UDim2.new(0,600,0,28)
-        }):Play()
-    end
-    Header.InputBegan:Connect(function(io)
-        if io.UserInputType == Enum.UserInputType.MouseButton1 and io.Position.Y - Header.AbsolutePosition.Y < 28 then
-            -- клик по хедеру = драг, двойной клик — сворачивание можно добавить отдельно
-        end
-    end)
-
-    local ToggleKey = Enum.KeyCode.RightShift -- клавиша открытия/закрытия
+    -- Открытие/закрытие на клавишу P
     input.InputBegan:Connect(function(io, gpe)
-        if not gpe and io.KeyCode == ToggleKey then
+        if not gpe and io.KeyCode == Enum.KeyCode.P then
             ScreenGui.Enabled = not ScreenGui.Enabled
         end
     end)
 
-    local CollapseBtn = create("TextButton", {
-        Parent = Header, BackgroundTransparency = 1,
-        Position = UDim2.new(1, -26, 0, 4), Size = UDim2.new(0, 20, 0, 20),
-        Text = "—", Font = Enum.Font.GothamBold, TextSize = 16,
-        TextColor3 = theme.TextColor
-    })
-    CollapseBtn.MouseButton1Click:Connect(ToggleWindow)
-
-    -- === ЛЕВАЯ КОЛОНКА ВКЛАДОК ===
-    local TabHolder = create("Frame", {
-        Parent = Main, BackgroundColor3 = theme.Header,
-        Position = UDim2.new(0, 0, 0, 28), Size = UDim2.new(0, 130, 1, -28)
-    })
-    local TabList = create("UIListLayout", {Parent = TabHolder, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0,2)})
-    create("UIPadding", {Parent = TabHolder, PaddingTop = UDim.new(0,6), PaddingLeft = UDim.new(0,6), PaddingRight = UDim.new(0,6)})
-
-    local ContentHolder = create("Frame", {
-        Parent = Main, BackgroundTransparency = 1,
-        Position = UDim2.new(0, 130, 0, 28), Size = UDim2.new(1, -130, 1, -28)
-    })
-
-    local Kavo_Tabs = {}
-    local Window = {}
-
-    function Window:NewTab(tabName)
-        local Tab = {}
-        local order = #Kavo_Tabs + 1
-
-        local TabBtn = create("TextButton", {
-            Parent = TabHolder, BackgroundColor3 = theme.ElementColor,
-            Size = UDim2.new(1, 0, 0, 30), Text = tabName,
-            Font = Enum.Font.Gotham, TextSize = 13,
-            TextColor3 = theme.TextColor, AutoButtonColor = false,
-            LayoutOrder = order
-        })
-        create("UICorner", {CornerRadius = UDim.new(0,4), Parent = TabBtn})
-
-        local Page = create("ScrollingFrame", {
-            Parent = ContentHolder, BackgroundTransparency = 1,
-            Size = UDim2.new(1,0,1,0), BorderSizePixel = 0,
-            ScrollBarThickness = 3, Visible = false,
-            AutomaticCanvasSize = Enum.AutomaticSize.Y,
-            CanvasSize = UDim2.new(0,0,0,0)
-        })
-        local PageLayout = create("UIListLayout", {Parent = Page, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0,8)})
-        create("UIPadding", {Parent = Page, PaddingLeft = UDim.new(0,10), PaddingTop = UDim.new(0,10), PaddingRight = UDim.new(0,10)})
-
-        TabBtn.MouseButton1Click:Connect(function()
-            for _,t in pairs(Kavo_Tabs) do
-                t.Page.Visible = false
-                t.Btn.BackgroundColor3 = theme.ElementColor
-            end
-            Page.Visible = true
-            TabBtn.BackgroundColor3 = theme.SchemeColor
-        end)
-
-        if order == 1 then
-            Page.Visible = true
-            TabBtn.BackgroundColor3 = theme.SchemeColor
-        end
-
-        table.insert(Kavo_Tabs, {Btn = TabBtn, Page = Page})
-
-        -- === СЕКЦИЯ ===
-        function Tab:NewSection(secName)
-            local Section = {}
-
-            local SecFrame = create("Frame", {
-                Parent = Page, BackgroundColor3 = theme.ElementColor,
-                Size = UDim2.new(1, 0, 0, 30), AutomaticSize = Enum.AutomaticSize.Y
-            })
-            create("UICorner", {CornerRadius = UDim.new(0,4), Parent = SecFrame})
-            create("UIPadding", {Parent = SecFrame, PaddingTop = UDim.new(0,8), PaddingBottom = UDim.new(0,10), PaddingLeft = UDim.new(0,10), PaddingRight = UDim.new(0,10)})
-
-            create("TextLabel", {
-                Parent = SecFrame, BackgroundTransparency = 1,
-                Size = UDim2.new(1, 0, 0, 16), Text = secName,
-                Font = Enum.Font.GothamBold, TextSize = 13,
-                TextColor3 = theme.TextColor, TextXAlignment = Enum.TextXAlignment.Left
-            })
-
-            local Holder = create("Frame", {
-                Parent = SecFrame, BackgroundTransparency = 1,
-                Position = UDim2.new(0, 0, 0, 22), Size = UDim2.new(1, 0, 0, 0),
-                AutomaticSize = Enum.AutomaticSize.Y
-            })
-            create("UIListLayout", {Parent = Holder, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0,6)})
-
-            -- === КНОПКА ===
-            function Section:NewButton(text, callback)
-                callback = callback or function() end
-                local Btn = create("TextButton", {
-                    Parent = Holder, BackgroundColor3 = theme.Header,
-                    Size = UDim2.new(1, 0, 0, 30), Text = text,
-                    Font = Enum.Font.Gotham, TextSize = 13,
-                    TextColor3 = theme.TextColor, AutoButtonColor = false
-                })
-                create("UICorner", {CornerRadius = UDim.new(0,4), Parent = Btn})
-                Btn.MouseButton1Click:Connect(callback)
-                Btn.MouseEnter:Connect(function()
-                    tween:Create(Btn, TweenInfo.new(0.15), {BackgroundColor3 = theme.SchemeColor}):Play()
-                end)
-                Btn.MouseLeave:Connect(function()
-                    tween:Create(Btn, TweenInfo.new(0.15), {BackgroundColor3 = theme.Header}):Play()
-                end)
-                return Btn
-            end
-
-            -- === СЛАЙДЕР ===
-            function Section:NewSlider(text, max, min, default, callback)
-                max, min = max or 100, min or 0
-                default = math.clamp(default or min, min, max)
-                callback = callback or function() end
-
-                local SliderFrame = create("Frame", {Parent = Holder, BackgroundColor3 = theme.Header, Size = UDim2.new(1, 0, 0, 40)})
-                create("UICorner", {CornerRadius = UDim.new(0,4), Parent = SliderFrame})
-
-                local Label = create("TextLabel", {
-                    Parent = SliderFrame, BackgroundTransparency = 1,
-                    Position = UDim2.new(0,10,0,4), Size = UDim2.new(1,-20,0,16),
-                    Font = Enum.Font.Gotham, TextSize = 12,
-                    Text = text .. ": " .. tostring(default),
-                    TextColor3 = theme.TextColor, TextXAlignment = Enum.TextXAlignment.Left
-                })
-
-                local Bar = create("Frame", {
-                    Parent = SliderFrame, BackgroundColor3 = theme.ElementColor,
-                    Position = UDim2.new(0,10,0,26), Size = UDim2.new(1,-20,0,6)
-                })
-                create("UICorner", {CornerRadius = UDim.new(1,0), Parent = Bar})
-
-                local Fill = create("Frame", {
-                    Parent = Bar, BackgroundColor3 = theme.SchemeColor,
-                    Size = UDim2.new((default - min)/(max - min), 0, 1, 0)
-                })
-                create("UICorner", {CornerRadius = UDim.new(1,0), Parent = Fill})
-
-                local dragging = false
-                local function update(io)
-                    local rel = math.clamp((io.Position.X - Bar.AbsolutePosition.X) / Bar.AbsoluteSize.X, 0, 1)
-                    local value = math.floor(min + (max - min) * rel)
-                    Fill.Size = UDim2.new(rel, 0, 1, 0)
-                    Label.Text = text .. ": " .. tostring(value)
-                    callback(value)
-                end
-                Bar.InputBegan:Connect(function(io)
-                    if io.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true; update(io) end
-                end)
-                input.InputChanged:Connect(function(io)
-                    if dragging and io.UserInputType == Enum.UserInputType.MouseMovement then update(io) end
-                end)
-                input.InputEnded:Connect(function(io)
-                    if io.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
-                end)
-                return SliderFrame
-            end
-
-            -- === ТОГГЛ (с раскрытием доп. элементов) ===
-            function Section:NewToggle(text, default, callback)
-                default = default or false
-                callback = callback or function() end
-                local state = default
-                local expanded = false
-
-                local ToggleFrame = create("Frame", {Parent = Holder, BackgroundColor3 = theme.Header, Size = UDim2.new(1,0,0,34), ClipsDescendants = true})
-                create("UICorner", {CornerRadius = UDim.new(0,4), Parent = ToggleFrame})
-
-                local TopRow = create("Frame", {Parent = ToggleFrame, BackgroundTransparency = 1, Size = UDim2.new(1,0,0,34)})
-
-                local Arrow = create("TextButton", {
-                    Parent = TopRow, BackgroundTransparency = 1,
-                    Position = UDim2.new(0, 6, 0, 0), Size = UDim2.new(0, 20, 1, 0),
-                    Text = ">", Font = Enum.Font.GothamBold, TextSize = 12,
-                    TextColor3 = theme.TextColor
-                })
-
-                local Label = create("TextLabel", {
-                    Parent = TopRow, BackgroundTransparency = 1,
-                    Position = UDim2.new(0, 28, 0, 0), Size = UDim2.new(1, -70, 1, 0),
-                    Font = Enum.Font.Gotham, TextSize = 13, Text = text,
-                    TextColor3 = theme.TextColor, TextXAlignment = Enum.TextXAlignment.Left
-                })
-
-                local Switch = create("TextButton", {
-                    Parent = TopRow, BackgroundColor3 = state and theme.SchemeColor or theme.ElementColor,
-                    Position = UDim2.new(1, -42, 0.5, -9), Size = UDim2.new(0, 34, 0, 18), Text = ""
-                })
-                create("UICorner", {CornerRadius = UDim.new(1,0), Parent = Switch})
-                local Knob = create("Frame", {
-                    Parent = Switch, BackgroundColor3 = theme.TextColor,
-                    Position = state and UDim2.new(1,-16,0.5,-7) or UDim2.new(0,2,0.5,-7),
-                    Size = UDim2.new(0,14,0,14)
-                })
-                create("UICorner", {CornerRadius = UDim.new(1,0), Parent = Knob})
-
-                local ExtraHolder = create("Frame", {
-                    Parent = ToggleFrame, BackgroundTransparency = 1,
-                    Position = UDim2.new(0, 28, 0, 34), Size = UDim2.new(1, -38, 0, 0),
-                    AutomaticSize = Enum.AutomaticSize.Y
-                })
-                create("UIListLayout", {Parent = ExtraHolder, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0,6)})
-                create("UIPadding", {Parent = ExtraHolder, PaddingBottom = UDim.new(0,6)})
-
-                local function refreshHeight()
-                    local extraH = expanded and (ExtraHolder.AbsoluteSize.Y + 34) or 34
-                    tween:Create(ToggleFrame, TweenInfo.new(0.15), {Size = UDim2.new(1,0,0,extraH)}):Play()
-                end
-
-                Switch.MouseButton1Click:Connect(function()
-                    state = not state
-                    tween:Create(Switch, TweenInfo.new(0.15), {BackgroundColor3 = state and theme.SchemeColor or theme.ElementColor}):Play()
-                    tween:Create(Knob, TweenInfo.new(0.15), {Position = state and UDim2.new(1,-16,0.5,-7) or UDim2.new(0,2,0.5,-7)}):Play()
-                    callback(state)
-                end)
-
-                Arrow.MouseButton1Click:Connect(function()
-                    expanded = not expanded
-                    Arrow.Text = expanded and "v" or ">"
-                    refreshHeight()
-                end)
-
-                -- Доп. функции внутри раскрывающегося тоггла (например слайдер FOV)
-                local Extra = {}
-                function Extra:NewSlider(subText, max, min, sdefault, subCallback)
-                    max, min = max or 100, min or 0
-                    sdefault = math.clamp(sdefault or min, min, max)
-                    subCallback = subCallback or function() end
-
-                    local SF = create("Frame", {Parent = ExtraHolder, BackgroundColor3 = theme.ElementColor, Size = UDim2.new(1,0,0,36)})
-                    create("UICorner", {CornerRadius = UDim.new(0,4), Parent = SF})
-                    local L = create("TextLabel", {
-                        Parent = SF, BackgroundTransparency = 1,
-                        Position = UDim2.new(0,8,0,2), Size = UDim2.new(1,-16,0,14),
-                        Font = Enum.Font.Gotham, TextSize = 11, Text = subText..": "..tostring(sdefault),
-                        TextColor3 = theme.TextColor, TextXAlignment = Enum.TextXAlignment.Left
-                    })
-                    local Bar = create("Frame", {Parent = SF, BackgroundColor3 = theme.Header, Position = UDim2.new(0,8,0,22), Size = UDim2.new(1,-16,0,5)})
-                    create("UICorner", {CornerRadius = UDim.new(1,0), Parent = Bar})
-                    local Fill = create("Frame", {Parent = Bar, BackgroundColor3 = theme.SchemeColor, Size = UDim2.new((sdefault-min)/(max-min),0,1,0)})
-                    create("UICorner", {CornerRadius = UDim.new(1,0), Parent = Fill})
-
-                    local dragging2 = false
-                    local function update(io)
-                        local rel = math.clamp((io.Position.X - Bar.AbsolutePosition.X)/Bar.AbsoluteSize.X, 0, 1)
-                        local v = math.floor(min + (max-min)*rel)
-                        Fill.Size = UDim2.new(rel,0,1,0)
-                        L.Text = subText..": "..tostring(v)
-                        subCallback(v)
-                        refreshHeight()
-                    end
-                    Bar.InputBegan:Connect(function(io)
-                        if io.UserInputType == Enum.UserInputType.MouseButton1 then dragging2 = true; update(io) end
-                    end)
-                    input.InputChanged:Connect(function(io)
-                        if dragging2 and io.UserInputType == Enum.UserInputType.MouseMovement then update(io) end
-                    end)
-                    input.InputEnded:Connect(function(io)
-                        if io.UserInputType == Enum.UserInputType.MouseButton1 then dragging2 = false end
-                    end)
-                    refreshHeight()
-                    return SF
-                end
-
-                function Extra:NewToggle(subText, sdefault, subCallback)
-                    sdefault = sdefault or false
-                    subCallback = subCallback or function() end
-                    local sstate = sdefault
-
-                    local TF = create("Frame", {Parent = ExtraHolder, BackgroundColor3 = theme.ElementColor, Size = UDim2.new(1,0,0,30)})
-                    create("UICorner", {CornerRadius = UDim.new(0,4), Parent = TF})
-                    create("TextLabel", {
-                        Parent = TF, BackgroundTransparency = 1,
-                        Position = UDim2.new(0,8,0,0), Size = UDim2.new(1,-50,1,0),
-                        Font = Enum.Font.Gotham, TextSize = 12, Text = subText,
-                        TextColor3 = theme.TextColor, TextXAlignment = Enum.TextXAlignment.Left
-                    })
-                    local SSwitch = create("TextButton", {
-                        Parent = TF, BackgroundColor3 = sstate and theme.SchemeColor or theme.Header,
-                        Position = UDim2.new(1,-36,0.5,-8), Size = UDim2.new(0,28,0,16), Text = ""
-                    })
-                    create("UICorner", {CornerRadius = UDim.new(1,0), Parent = SSwitch})
-                    local SKnob = create("Frame", {
-                        Parent = SSwitch, BackgroundColor3 = theme.TextColor,
-                        Position = sstate and UDim2.new(1,-13,0.5,-6) or UDim2.new(0,2,0.5,-6),
-                        Size = UDim2.new(0,12,0,12)
-                    })
-                    create("UICorner", {CornerRadius = UDim.new(1,0), Parent = SKnob})
-                    SSwitch.MouseButton1Click:Connect(function()
-                        sstate = not sstate
-                        tween:Create(SSwitch, TweenInfo.new(0.15), {BackgroundColor3 = sstate and theme.SchemeColor or theme.Header}):Play()
-                        tween:Create(SKnob, TweenInfo.new(0.15), {Position = sstate and UDim2.new(1,-13,0.5,-6) or UDim2.new(0,2,0.5,-6)}):Play()
-                        subCallback(sstate)
-                    end)
-                    refreshHeight()
-                    return TF
-                end
-
-                return Extra
-            end
-
-            return Section
-        end
-
-        return Tab
-    end
-
-    return Window
+    return ScreenGui, Main
 end
 
-return Kavo
+return Scrp
