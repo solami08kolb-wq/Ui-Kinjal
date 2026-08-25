@@ -1,10 +1,10 @@
--- ============================================
--- ФАЙЛ 1: Library.lua (заливаешь на GitHub)
--- ============================================
 
 local Scrp = {}
 local input = game:GetService("UserInputService")
 local runService = game:GetService("RunService")
+
+local CurrentMain = nil
+local TitleLabel = nil
 
 local function create(class, props)
     local o = Instance.new(class)
@@ -16,9 +16,7 @@ end
 local function DraggingEnabled(frame, parent)
     parent = parent or frame
     local dragging = false
-    local dragInput
-    local startPos, mousePos
-
+    local mousePos, startPos
     local heartbeatConn
 
     frame.InputBegan:Connect(function(io)
@@ -90,7 +88,37 @@ function Scrp.CreateWindowLib()
         end
     end)
 
+    CurrentMain = Main -- запоминаем окно для Scrp.Name()
+
     return ScreenGui, Main
+end
+
+-- Задаёт название окна, сверху слева
+function Scrp.Name(name)
+    name = name or "Window"
+    if not CurrentMain then
+        warn("Scrp.Name: сначала вызови Scrp.CreateWindowLib()")
+        return
+    end
+
+    if not TitleLabel then
+        TitleLabel = create("TextLabel", {
+            Name = "Title",
+            Parent = CurrentMain,
+            BackgroundTransparency = 1,
+            Position = UDim2.new(0, 10, 0, 6),
+            Size = UDim2.new(1, -20, 0, 20),
+            Font = Enum.Font.GothamBold,
+            TextSize = 15,
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Text = name
+        })
+    else
+        TitleLabel.Text = name
+    end
+
+    return TitleLabel
 end
 
 return Scrp
