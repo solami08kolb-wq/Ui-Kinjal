@@ -4,7 +4,6 @@
 
 local Scrp = {}
 local input = game:GetService("UserInputService")
-local tweenService = game:GetService("TweenService")
 
 local CurrentMain = nil
 local TitleLabel = nil
@@ -15,20 +14,11 @@ local function create(class, props)
     return o
 end
 
--- Надёжный драг без срывов
+-- Простой и надёжный драг (прямое присвоение позиции, без твинов)
 local function DraggingEnabled(frame, parent)
     parent = parent or frame
     local dragging = false
     local dragInput, mousePos, startPos
-
-    local function update(input)
-        local delta = input.Position - mousePos
-        local goal = UDim2.new(
-            startPos.X.Scale, startPos.X.Offset + delta.X,
-            startPos.Y.Scale, startPos.Y.Offset + delta.Y
-        )
-        tweenService:Create(parent, TweenInfo.new(0.03, Enum.EasingStyle.Linear), {Position = goal}):Play()
-    end
 
     frame.InputBegan:Connect(function(io)
         if io.UserInputType == Enum.UserInputType.MouseButton1 or io.UserInputType == Enum.UserInputType.Touch then
@@ -52,7 +42,11 @@ local function DraggingEnabled(frame, parent)
 
     input.InputChanged:Connect(function(io)
         if io == dragInput and dragging then
-            update(io)
+            local delta = io.Position - mousePos
+            parent.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
         end
     end)
 end
