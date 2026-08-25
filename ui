@@ -7,6 +7,10 @@ local input = game:GetService("UserInputService")
 
 local CurrentMain = nil
 local TitleLabel = nil
+local TabHolder = nil
+local ContentHolder = nil
+local Tabs = {}
+local firstTab = true
 
 local function create(class, props)
     local o = Instance.new(class)
@@ -79,7 +83,34 @@ function Scrp.CreateWindowLib()
         end
     end)
 
-    CurrentMain = Main -- запоминаем окно для Scrp.Name()
+    CurrentMain = Main
+
+    -- Левая колонка под вкладки (ниже надписи названия окна)
+    TabHolder = create("Frame", {
+        Name = "TabHolder", Parent = Main,
+        BackgroundColor3 = Color3.fromRGB(15, 15, 15),
+        Position = UDim2.new(0, 0, 0, 30),
+        Size = UDim2.new(0, 130, 1, -30)
+    })
+    create("UIListLayout", {
+        Parent = TabHolder,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 2)
+    })
+    create("UIPadding", {
+        Parent = TabHolder,
+        PaddingTop = UDim.new(0, 6),
+        PaddingLeft = UDim.new(0, 6),
+        PaddingRight = UDim.new(0, 6)
+    })
+
+    -- Контейнер под контент вкладок (справа от TabHolder)
+    ContentHolder = create("Frame", {
+        Name = "ContentHolder", Parent = Main,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 130, 0, 30),
+        Size = UDim2.new(1, -130, 1, -30)
+    })
 
     return ScreenGui, Main
 end
@@ -110,6 +141,70 @@ function Scrp.Name(name)
     end
 
     return TitleLabel
+end
+
+-- Создаёт новую вкладку слева
+function Scrp.LeftNewTab(name)
+    name = name or "Tab"
+    if not TabHolder or not ContentHolder then
+        warn("Scrp.LeftNewTab: сначала вызови Scrp.CreateWindowLib()")
+        return
+    end
+
+    local TabBtn = create("TextButton", {
+        Name = name .. "Btn",
+        Parent = TabHolder,
+        BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+        Size = UDim2.new(1, 0, 0, 30),
+        AutoButtonColor = false,
+        Font = Enum.Font.Gotham,
+        TextSize = 13,
+        Text = name,
+        TextColor3 = Color3.fromRGB(255, 255, 255)
+    })
+    create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = TabBtn})
+
+    local Page = create("ScrollingFrame", {
+        Name = name .. "Page",
+        Parent = ContentHolder,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 1, 0),
+        ScrollBarThickness = 3,
+        Visible = false,
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        CanvasSize = UDim2.new(0, 0, 0, 0)
+    })
+    create("UIListLayout", {
+        Parent = Page,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 8)
+    })
+    create("UIPadding", {
+        Parent = Page,
+        PaddingLeft = UDim.new(0, 10),
+        PaddingTop = UDim.new(0, 10),
+        PaddingRight = UDim.new(0, 10)
+    })
+
+    TabBtn.MouseButton1Click:Connect(function()
+        for _, t in pairs(Tabs) do
+            t.Page.Visible = false
+            t.Btn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+        end
+        Page.Visible = true
+        TabBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    end)
+
+    if firstTab then
+        firstTab = false
+        Page.Visible = true
+        TabBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    end
+
+    table.insert(Tabs, {Btn = TabBtn, Page = Page})
+
+    return Page
 end
 
 return Scrp
