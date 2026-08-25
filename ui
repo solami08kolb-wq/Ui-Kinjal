@@ -11,6 +11,10 @@ local TabHolder = nil
 local ContentHolder = nil
 local Tabs = {}
 local firstTab = true
+local CurrentPage = nil -- вкладка, в которую сейчас пишутся функции
+
+local COLOR_INACTIVE = Color3.fromRGB(18, 18, 18) -- чуть заметнее фона (фон = 0,0,0)
+local COLOR_ACTIVE   = Color3.fromRGB(45, 45, 45)
 
 local function create(class, props)
     local o = Instance.new(class)
@@ -18,7 +22,7 @@ local function create(class, props)
     return o
 end
 
--- Простой и надёжный драг (прямое присвоение позиции, без твинов)
+-- Простой и надёжный драг
 local function DraggingEnabled(frame, parent)
     parent = parent or frame
     local dragging = false
@@ -76,7 +80,6 @@ function Scrp.CreateWindowLib()
 
     DraggingEnabled(Main, Main)
 
-    -- Открытие/закрытие на клавишу P
     input.InputBegan:Connect(function(io, gpe)
         if not gpe and io.KeyCode == Enum.KeyCode.P then
             ScreenGui.Enabled = not ScreenGui.Enabled
@@ -85,7 +88,6 @@ function Scrp.CreateWindowLib()
 
     CurrentMain = Main
 
-    -- Левая колонка под вкладки (ниже надписи названия окна)
     TabHolder = create("Frame", {
         Name = "TabHolder", Parent = Main,
         BackgroundColor3 = Color3.fromRGB(15, 15, 15),
@@ -104,7 +106,6 @@ function Scrp.CreateWindowLib()
         PaddingRight = UDim.new(0, 6)
     })
 
-    -- Контейнер под контент вкладок (справа от TabHolder)
     ContentHolder = create("Frame", {
         Name = "ContentHolder", Parent = Main,
         BackgroundTransparency = 1,
@@ -115,7 +116,6 @@ function Scrp.CreateWindowLib()
     return ScreenGui, Main
 end
 
--- Задаёт название окна, сверху слева
 function Scrp.Name(name)
     name = name or "Window"
     if not CurrentMain then
@@ -143,7 +143,7 @@ function Scrp.Name(name)
     return TitleLabel
 end
 
--- Создаёт новую вкладку слева
+-- Создаёт новую вкладку слева И делает её текущей для записи функций
 function Scrp.LeftNewTab(name)
     name = name or "Tab"
     if not TabHolder or not ContentHolder then
@@ -154,7 +154,7 @@ function Scrp.LeftNewTab(name)
     local TabBtn = create("TextButton", {
         Name = name .. "Btn",
         Parent = TabHolder,
-        BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+        BackgroundColor3 = COLOR_INACTIVE,
         Size = UDim2.new(1, 0, 0, 30),
         AutoButtonColor = false,
         Font = Enum.Font.Gotham,
@@ -190,21 +190,102 @@ function Scrp.LeftNewTab(name)
     TabBtn.MouseButton1Click:Connect(function()
         for _, t in pairs(Tabs) do
             t.Page.Visible = false
-            t.Btn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+            t.Btn.BackgroundColor3 = COLOR_INACTIVE
         end
         Page.Visible = true
-        TabBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+        TabBtn.BackgroundColor3 = COLOR_ACTIVE
     end)
 
     if firstTab then
         firstTab = false
         Page.Visible = true
-        TabBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+        TabBtn.BackgroundColor3 = COLOR_ACTIVE
     end
 
-    table.insert(Tabs, {Btn = TabBtn, Page = Page})
+    table.insert(Tabs, {Btn = TabBtn, Page = Page, Name = name})
+
+    -- ВАЖНО: делаем эту вкладку текущей для записи функций (Slider/Toggle/Button)
+    CurrentPage = Page
 
     return Page
+end
+
+-- Слайдер, добавляется в ТЕКУЩУЮ (последнюю созданную) вкладку
+function Scrp.NewSlider(text, tip, max, min, callback)
+    text = text or "Slider"
+    tip = tip or ""
+    max = max or 100
+    min = min or 0
+    callback = callback or function() end
+
+    if not CurrentPage then
+        warn("Scrp.NewSlider: сначала вызови Scrp.LeftNewTab(\"name\")")
+        return
+    end
+
+    local default = min
+
+    local SliderFrame = create("Frame", {
+        Parent = CurrentPage,
+        BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+        Size = UDim2.new(1, 0, 0, 40)
+    })
+    create("UICorner", {CornerRadius = UDim.new(0,4), Parent = SliderFrame})
+
+    local Label = create("TextLabel", {
+        Parent = SliderFrame,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 10, 0, 4),
+        Size = UDim2.new(1, -20, 0, 16),
+        Font = Enum.Font.Gotham,
+        TextSize = 12,
+        Text = text .. ": " .. tostring(default),
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextXAlignment = Enum.TextXAlignment.Left
+    })
+
+    local Bar = create("Frame", {
+        Parent = SliderFrame,
+        BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+        Position = UDim2.new(0, 10, 0, 26),
+        Size = UDim2.new(1, -20, 0, 6)
+    })
+    create("UICorner", {CornerRadius = UDim.new(1,0), Parent = Bar})
+
+    local Fill = create("Frame", {
+        Parent = Bar,
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+    })
+    create("UICorner", {CornerRadius = UDim.new(1,0), Parent = Fill})
+
+    local dragging = false
+    local function update(io)
+        local rel = math.clamp((io.Position.X - Bar.AbsolutePosition.X) / Bar.AbsoluteSize.X, 0, 1)
+        local value = math.floor(min + (max - min) * rel)
+        Fill.Size = UDim2.new(rel, 0, 1, 0)
+        Label.Text = text .. ": " .. tostring(value)
+        callback(value)
+    end
+
+    Bar.InputBegan:Connect(function(io)
+        if io.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            update(io)
+        end
+    end)
+    input.InputChanged:Connect(function(io)
+        if dragging and io.UserInputType == Enum.UserInputType.MouseMovement then
+            update(io)
+        end
+    end)
+    input.InputEnded:Connect(function(io)
+        if io.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+
+    return SliderFrame
 end
 
 return Scrp
