@@ -11,9 +11,11 @@ local TabHolder = nil
 local ContentHolder = nil
 local Tabs = {}
 local firstTab = true
-local CurrentPage = nil -- вкладка, в которую сейчас пишутся функции
+local CurrentPage = nil
 
-local COLOR_INACTIVE = Color3.fromRGB(18, 18, 18) -- чуть заметнее фона (фон = 0,0,0)
+local WindowDragBlocked = false -- флаг: если true, окно двигать нельзя (тащим слайдер)
+
+local COLOR_INACTIVE = Color3.fromRGB(18, 18, 18)
 local COLOR_ACTIVE   = Color3.fromRGB(45, 45, 45)
 
 local function create(class, props)
@@ -22,13 +24,14 @@ local function create(class, props)
     return o
 end
 
--- Простой и надёжный драг
+-- Драг окна, теперь проверяет WindowDragBlocked
 local function DraggingEnabled(frame, parent)
     parent = parent or frame
     local dragging = false
     local dragInput, mousePos, startPos
 
     frame.InputBegan:Connect(function(io)
+        if WindowDragBlocked then return end
         if io.UserInputType == Enum.UserInputType.MouseButton1 or io.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             mousePos = io.Position
@@ -49,12 +52,14 @@ local function DraggingEnabled(frame, parent)
     end)
 
     input.InputChanged:Connect(function(io)
-        if io == dragInput and dragging then
+        if io == dragInput and dragging and not WindowDragBlocked then
             local delta = io.Position - mousePos
             parent.Position = UDim2.new(
                 startPos.X.Scale, startPos.X.Offset + delta.X,
                 startPos.Y.Scale, startPos.Y.Offset + delta.Y
             )
+        elseif WindowDragBlocked then
+            dragging = false
         end
     end)
 end
@@ -143,7 +148,6 @@ function Scrp.Name(name)
     return TitleLabel
 end
 
--- Создаёт новую вкладку слева И делает её текущей для записи функций
 function Scrp.LeftNewTab(name)
     name = name or "Tab"
     if not TabHolder or not ContentHolder then
@@ -204,13 +208,12 @@ function Scrp.LeftNewTab(name)
 
     table.insert(Tabs, {Btn = TabBtn, Page = Page, Name = name})
 
-    -- ВАЖНО: делаем эту вкладку текущей для записи функций (Slider/Toggle/Button)
     CurrentPage = Page
 
     return Page
 end
 
--- Слайдер, добавляется в ТЕКУЩУЮ (последнюю созданную) вкладку
+-- Слайдер: теперь блокирует драг окна, пока тащишь ползунок
 function Scrp.NewSlider(text, tip, max, min, callback)
     text = text or "Slider"
     tip = tip or ""
@@ -271,6 +274,7 @@ function Scrp.NewSlider(text, tip, max, min, callback)
     Bar.InputBegan:Connect(function(io)
         if io.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = true
+            WindowDragBlocked = true -- блокируем драг окна
             update(io)
         end
     end)
@@ -281,7 +285,10 @@ function Scrp.NewSlider(text, tip, max, min, callback)
     end)
     input.InputEnded:Connect(function(io)
         if io.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = false
+            if dragging then
+                dragging = false
+                WindowDragBlocked = false -- разблокируем драг окна
+            end
         end
     end)
 
