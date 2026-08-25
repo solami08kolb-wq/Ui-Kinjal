@@ -4,6 +4,7 @@
 
 local Scrp = {}
 local input = game:GetService("UserInputService")
+local tweenService = game:GetService("TweenService")
 
 local CurrentMain = nil
 local TitleLabel = nil
@@ -13,7 +14,8 @@ local Tabs = {}
 local firstTab = true
 local CurrentPage = nil
 
-local WindowDragBlocked = false -- флаг: если true, окно двигать нельзя (тащим слайдер)
+local WindowDragBlocked = false
+local InfoPanel = nil -- всплывающая панель снизу
 
 local COLOR_INACTIVE = Color3.fromRGB(18, 18, 18)
 local COLOR_ACTIVE   = Color3.fromRGB(45, 45, 45)
@@ -24,7 +26,7 @@ local function create(class, props)
     return o
 end
 
--- Драг окна, теперь проверяет WindowDragBlocked
+-- ===== Драг окна =====
 local function DraggingEnabled(frame, parent)
     parent = parent or frame
     local dragging = false
@@ -64,6 +66,7 @@ local function DraggingEnabled(frame, parent)
     end)
 end
 
+-- ===== Создание окна =====
 function Scrp.CreateWindowLib()
     local LibId = "Scrp_" .. tostring(math.random(1,999999))
     for _,v in pairs(game.CoreGui:GetChildren()) do
@@ -78,6 +81,7 @@ function Scrp.CreateWindowLib()
     local Main = create("Frame", {
         Name = "Main", Parent = ScreenGui,
         BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+        ClipsDescendants = true,
         Position = UDim2.new(0.5, -300, 0.5, -140),
         Size = UDim2.new(0, 600, 0, 280)
     })
@@ -118,7 +122,69 @@ function Scrp.CreateWindowLib()
         Size = UDim2.new(1, -130, 1, -30)
     })
 
+    -- Панель для инфо (появляется снизу окна)
+    InfoPanel = create("Frame", {
+        Name = "InfoPanel", Parent = Main,
+        BackgroundColor3 = Color3.fromRGB(25, 25, 25),
+        Position = UDim2.new(0, 130, 1, 0), -- скрыта под окном
+        Size = UDim2.new(1, -130, 0, 36),
+        ZIndex = 50
+    })
+    create("UICorner", {CornerRadius = UDim.new(0,4), Parent = InfoPanel})
+    local InfoText = create("TextLabel", {
+        Name = "InfoText", Parent = InfoPanel,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, -16, 1, 0),
+        Position = UDim2.new(0, 8, 0, 0),
+        Font = Enum.Font.Gotham, TextSize = 13,
+        TextColor3 = Color3.fromRGB(255,255,255),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextWrapped = true,
+        Text = ""
+    })
+
     return ScreenGui, Main
+end
+
+-- Показывает всплывающую подсказку снизу на 2 секунды
+local infoShowToken = 0
+local function ShowInfo(text)
+    if not InfoPanel then return end
+    infoShowToken = infoShowToken + 1
+    local myToken = infoShowToken
+
+    InfoPanel.InfoText.Text = text
+    InfoPanel.Position = UDim2.new(0, 130, 1, 0)
+    tweenService:Create(InfoPanel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        Position = UDim2.new(0, 130, 1, -40)
+    }):Play()
+
+    task.delay(2, function()
+        if myToken ~= infoShowToken then return end -- если открыли новую подсказку, не закрываем её раньше времени
+        tweenService:Create(InfoPanel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+            Position = UDim2.new(0, 130, 1, 0)
+        }):Play()
+    end)
+end
+
+-- Создаёт инфо-точку в конце элемента
+local function AddInfoDot(parentFrame, tipText)
+    tipText = tipText or ""
+    local Dot = create("TextButton", {
+        Name = "InfoDot",
+        Parent = parentFrame,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(1, -20, 0.5, -8),
+        Size = UDim2.new(0, 16, 0, 16),
+        Font = Enum.Font.GothamBold,
+        TextSize = 18,
+        Text = "•",
+        TextColor3 = Color3.fromRGB(150, 150, 150)
+    })
+    Dot.MouseButton1Click:Connect(function()
+        ShowInfo(tipText)
+    end)
+    return Dot
 end
 
 function Scrp.Name(name)
@@ -207,13 +273,12 @@ function Scrp.LeftNewTab(name)
     end
 
     table.insert(Tabs, {Btn = TabBtn, Page = Page, Name = name})
-
     CurrentPage = Page
 
     return Page
 end
 
--- Слайдер: теперь блокирует драг окна, пока тащишь ползунок
+-- ===== СЛАЙДЕР =====
 function Scrp.NewSlider(text, tip, max, min, callback)
     text = text or "Slider"
     tip = tip or ""
@@ -239,7 +304,7 @@ function Scrp.NewSlider(text, tip, max, min, callback)
         Parent = SliderFrame,
         BackgroundTransparency = 1,
         Position = UDim2.new(0, 10, 0, 4),
-        Size = UDim2.new(1, -20, 0, 16),
+        Size = UDim2.new(1, -30, 0, 16),
         Font = Enum.Font.Gotham,
         TextSize = 12,
         Text = text .. ": " .. tostring(default),
@@ -262,6 +327,8 @@ function Scrp.NewSlider(text, tip, max, min, callback)
     })
     create("UICorner", {CornerRadius = UDim.new(1,0), Parent = Fill})
 
+    AddInfoDot(SliderFrame, tip) -- инфо-точка в конце функции
+
     local dragging = false
     local function update(io)
         local rel = math.clamp((io.Position.X - Bar.AbsolutePosition.X) / Bar.AbsoluteSize.X, 0, 1)
@@ -274,7 +341,7 @@ function Scrp.NewSlider(text, tip, max, min, callback)
     Bar.InputBegan:Connect(function(io)
         if io.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = true
-            WindowDragBlocked = true -- блокируем драг окна
+            WindowDragBlocked = true
             update(io)
         end
     end)
@@ -287,12 +354,198 @@ function Scrp.NewSlider(text, tip, max, min, callback)
         if io.UserInputType == Enum.UserInputType.MouseButton1 then
             if dragging then
                 dragging = false
-                WindowDragBlocked = false -- разблокируем драг окна
+                WindowDragBlocked = false
             end
         end
     end)
 
     return SliderFrame
+end
+
+-- ===== ТОГГЛ (с разворотом для доп. элементов) =====
+function Scrp.NewToggle(text, tip, callback)
+    text = text or "Toggle"
+    tip = tip or ""
+    callback = callback or function() end
+
+    if not CurrentPage then
+        warn("Scrp.NewToggle: сначала вызови Scrp.LeftNewTab(\"name\")")
+        return
+    end
+
+    local state = false
+    local expanded = false
+
+    local ToggleFrame = create("Frame", {
+        Parent = CurrentPage,
+        BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+        Size = UDim2.new(1, 0, 0, 34),
+        ClipsDescendants = true
+    })
+    create("UICorner", {CornerRadius = UDim.new(0,4), Parent = ToggleFrame})
+
+    -- Стрелка разворота (слева) — НЕ переключает состояние, только раскрывает панель
+    local Arrow = create("TextButton", {
+        Parent = ToggleFrame,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 6, 0, 0),
+        Size = UDim2.new(0, 20, 0, 34),
+        Font = Enum.Font.GothamBold,
+        TextSize = 12,
+        Text = ">",
+        TextColor3 = Color3.fromRGB(255, 255, 255)
+    })
+
+    local Label = create("TextLabel", {
+        Parent = ToggleFrame,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 28, 0, 0),
+        Size = UDim2.new(1, -95, 0, 34),
+        Font = Enum.Font.Gotham,
+        TextSize = 13,
+        Text = text,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextXAlignment = Enum.TextXAlignment.Left
+    })
+
+    -- Переключатель (справа) — управляет ТОЛЬКО состоянием вкл/выкл
+    local Switch = create("TextButton", {
+        Parent = ToggleFrame,
+        BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+        Position = UDim2.new(1, -60, 0, 8),
+        Size = UDim2.new(0, 34, 0, 18),
+        Text = "", AutoButtonColor = false
+    })
+    create("UICorner", {CornerRadius = UDim.new(1,0), Parent = Switch})
+    local Knob = create("Frame", {
+        Parent = Switch,
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        Position = UDim2.new(0, 2, 0.5, -7),
+        Size = UDim2.new(0, 14, 0, 14)
+    })
+    create("UICorner", {CornerRadius = UDim.new(1,0), Parent = Knob})
+
+    AddInfoDot(ToggleFrame, tip) -- инфо-точка в конце функции
+
+    -- Контейнер для доп. элементов (появляется при развороте)
+    local ExtraHolder = create("Frame", {
+        Parent = ToggleFrame,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 28, 0, 34),
+        Size = UDim2.new(1, -38, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y
+    })
+    create("UIListLayout", {
+        Parent = ExtraHolder,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 6)
+    })
+    create("UIPadding", {Parent = ExtraHolder, PaddingBottom = UDim.new(0, 8)})
+
+    local function refreshHeight()
+        local extraH = expanded and (ExtraHolder.AbsoluteSize.Y + 34) or 34
+        tweenService:Create(ToggleFrame, TweenInfo.new(0.15), {Size = UDim2.new(1,0,0,extraH)}):Play()
+    end
+
+    Switch.MouseButton1Click:Connect(function()
+        state = not state
+        tweenService:Create(Switch, TweenInfo.new(0.15), {
+            BackgroundColor3 = state and Color3.fromRGB(255,255,255) or Color3.fromRGB(35,35,35)
+        }):Play()
+        tweenService:Create(Knob, TweenInfo.new(0.15), {
+            Position = state and UDim2.new(1,-16,0.5,-7) or UDim2.new(0,2,0.5,-7),
+            BackgroundColor3 = state and Color3.fromRGB(0,0,0) or Color3.fromRGB(255,255,255)
+        }):Play()
+        callback(state)
+    end)
+
+    Arrow.MouseButton1Click:Connect(function()
+        expanded = not expanded
+        Arrow.Text = expanded and "v" or ">"
+        refreshHeight()
+    end)
+
+    -- Объект для добавления доп. элементов ВНУТРЬ тоггла
+    local Extra = {}
+
+    function Extra:NewSlider(subText, subTip, max, min, subCallback)
+        subText = subText or "Slider"
+        subTip = subTip or ""
+        max = max or 100
+        min = min or 0
+        subCallback = subCallback or function() end
+        local sdefault = min
+
+        local SF = create("Frame", {
+            Parent = ExtraHolder,
+            BackgroundColor3 = Color3.fromRGB(28, 28, 28),
+            Size = UDim2.new(1, 0, 0, 36)
+        })
+        create("UICorner", {CornerRadius = UDim.new(0,4), Parent = SF})
+
+        local L = create("TextLabel", {
+            Parent = SF,
+            BackgroundTransparency = 1,
+            Position = UDim2.new(0, 8, 0, 2),
+            Size = UDim2.new(1, -30, 0, 14),
+            Font = Enum.Font.Gotham, TextSize = 11,
+            Text = subText .. ": " .. tostring(sdefault),
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+            TextXAlignment = Enum.TextXAlignment.Left
+        })
+
+        local Bar = create("Frame", {
+            Parent = SF,
+            BackgroundColor3 = Color3.fromRGB(45, 45, 45),
+            Position = UDim2.new(0, 8, 0, 22),
+            Size = UDim2.new(1, -16, 0, 5)
+        })
+        create("UICorner", {CornerRadius = UDim.new(1,0), Parent = Bar})
+
+        local Fill = create("Frame", {
+            Parent = Bar,
+            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+            Size = UDim2.new((sdefault - min) / (max - min), 0, 1, 0)
+        })
+        create("UICorner", {CornerRadius = UDim.new(1,0), Parent = Fill})
+
+        AddInfoDot(SF, subTip)
+
+        local dragging2 = false
+        local function update(io)
+            local rel = math.clamp((io.Position.X - Bar.AbsolutePosition.X) / Bar.AbsoluteSize.X, 0, 1)
+            local v = math.floor(min + (max - min) * rel)
+            Fill.Size = UDim2.new(rel, 0, 1, 0)
+            L.Text = subText .. ": " .. tostring(v)
+            subCallback(v)
+        end
+
+        Bar.InputBegan:Connect(function(io)
+            if io.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging2 = true
+                WindowDragBlocked = true
+                update(io)
+            end
+        end)
+        input.InputChanged:Connect(function(io)
+            if dragging2 and io.UserInputType == Enum.UserInputType.MouseMovement then
+                update(io)
+            end
+        end)
+        input.InputEnded:Connect(function(io)
+            if io.UserInputType == Enum.UserInputType.MouseButton1 then
+                if dragging2 then
+                    dragging2 = false
+                    WindowDragBlocked = false
+                end
+            end
+        end)
+
+        refreshHeight()
+        return SF
+    end
+
+    return Extra
 end
 
 return Scrp
