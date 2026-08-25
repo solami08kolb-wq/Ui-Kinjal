@@ -1,5 +1,10 @@
+-- ============================================
+-- ФАЙЛ 1: Library.lua (заливаешь на GitHub)
+-- ============================================
+
 local Scrp = {}
 local input = game:GetService("UserInputService")
+local runService = game:GetService("RunService")
 
 local function create(class, props)
     local o = Instance.new(class)
@@ -7,23 +12,52 @@ local function create(class, props)
     return o
 end
 
+-- Исправленный драг: без рывков при резком движении мыши
 local function DraggingEnabled(frame, parent)
     parent = parent or frame
-    local dragging, dragStart, startPos
+    local dragging = false
+    local dragInput
+    local startPos, mousePos
+
+    local heartbeatConn
+
     frame.InputBegan:Connect(function(io)
-        if io.UserInputType == Enum.UserInputType.MouseButton1 then
+        if io.UserInputType == Enum.UserInputType.MouseButton1 or io.UserInputType == Enum.UserInputType.Touch then
             dragging = true
-            dragStart = io.Position
+            mousePos = io.Position
             startPos = parent.Position
+
+            if heartbeatConn then heartbeatConn:Disconnect() end
+            heartbeatConn = runService.Heartbeat:Connect(function()
+                if dragging then
+                    local mouseLoc = input:GetMouseLocation()
+                    local delta = Vector2.new(mouseLoc.X, mouseLoc.Y) - mousePos
+                    parent.Position = UDim2.new(
+                        startPos.X.Scale, startPos.X.Offset + delta.X,
+                        startPos.Y.Scale, startPos.Y.Offset + delta.Y
+                    )
+                end
+            end)
+
             io.Changed:Connect(function()
-                if io.UserInputState == Enum.UserInputState.End then dragging = false end
+                if io.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                    if heartbeatConn then
+                        heartbeatConn:Disconnect()
+                        heartbeatConn = nil
+                    end
+                end
             end)
         end
     end)
-    frame.InputChanged:Connect(function(io)
-        if io.UserInputType == Enum.UserInputType.MouseMovement and dragging then
-            local delta = io.Position - dragStart
-            parent.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+
+    input.InputEnded:Connect(function(io)
+        if (io.UserInputType == Enum.UserInputType.MouseButton1 or io.UserInputType == Enum.UserInputType.Touch) and dragging then
+            dragging = false
+            if heartbeatConn then
+                heartbeatConn:Disconnect()
+                heartbeatConn = nil
+            end
         end
     end)
 end
