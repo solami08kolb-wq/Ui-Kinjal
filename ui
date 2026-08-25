@@ -1,7 +1,3 @@
--- ============================================
--- ФАЙЛ 1: Library.lua (заливаешь на GitHub)
--- ============================================
-
 local Scrp = {}
 local input = game:GetService("UserInputService")
 
