@@ -5,6 +5,7 @@
 local Scrp = {}
 local input = game:GetService("UserInputService")
 local tweenService = game:GetService("TweenService")
+local runService = game:GetService("RunService")
 
 local CurrentMain = nil
 local TitleLabel = nil
@@ -15,10 +16,53 @@ local firstTab = true
 local CurrentPage = nil
 
 local WindowDragBlocked = false
-local InfoPanel = nil -- всплывающая панель снизу
+local InfoPanel = nil
 
 local COLOR_INACTIVE = Color3.fromRGB(18, 18, 18)
-local COLOR_ACTIVE   = Color3.fromRGB(45, 45, 45)
+
+-- ===== СИСТЕМА ТЕМ (1-6 цвета, 7 = радужная) =====
+local ThemeColors = {
+    Color3.fromRGB(255, 60, 60),   -- 1 Красный
+    Color3.fromRGB(255, 150, 40),  -- 2 Оранжевый
+    Color3.fromRGB(255, 230, 40),  -- 3 Жёлтый
+    Color3.fromRGB(60, 220, 100),  -- 4 Зелёный
+    Color3.fromRGB(60, 150, 255),  -- 5 Синий
+    Color3.fromRGB(180, 90, 255),  -- 6 Фиолетовый
+}
+local ThemeNames = {"Красный", "Оранжевый", "Жёлтый", "Зелёный", "Синий", "Фиолетовый", "Радужный"}
+
+local CurrentThemeIndex = 1
+local IsRainbow = false
+local RainbowHue = 0
+
+local function GetThemeColor()
+    if IsRainbow then
+        return Color3.fromHSV(RainbowHue, 1, 1)
+    else
+        return ThemeColors[CurrentThemeIndex] or ThemeColors[1]
+    end
+end
+
+-- Реестр объектов, которые должны обновляться при смене темы (в т.ч. каждый кадр в радужном режиме)
+local ThemedUpdaters = {}
+local function RegisterThemed(updateFn)
+    table.insert(ThemedUpdaters, updateFn)
+    updateFn(GetThemeColor())
+end
+local function RefreshTheme()
+    local c = GetThemeColor()
+    for _, fn in ipairs(ThemedUpdaters) do
+        fn(c)
+    end
+end
+
+-- Радужный цикл (обновляет все зарегистрированные объекты каждый кадр)
+runService.Heartbeat:Connect(function(dt)
+    if IsRainbow then
+        RainbowHue = (RainbowHue + dt * 0.15) % 1
+        RefreshTheme()
+    end
+end)
 
 local function create(class, props)
     local o = Instance.new(class)
@@ -122,11 +166,10 @@ function Scrp.CreateWindowLib()
         Size = UDim2.new(1, -130, 1, -30)
     })
 
-    -- Панель для инфо (появляется снизу окна)
     InfoPanel = create("Frame", {
         Name = "InfoPanel", Parent = Main,
         BackgroundColor3 = Color3.fromRGB(25, 25, 25),
-        Position = UDim2.new(0, 130, 1, 0), -- скрыта под окном
+        Position = UDim2.new(0, 130, 1, 0),
         Size = UDim2.new(1, -130, 0, 36),
         ZIndex = 50
     })
@@ -160,14 +203,14 @@ local function ShowInfo(text)
     }):Play()
 
     task.delay(2, function()
-        if myToken ~= infoShowToken then return end -- если открыли новую подсказку, не закрываем её раньше времени
+        if myToken ~= infoShowToken then return end
         tweenService:Create(InfoPanel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
             Position = UDim2.new(0, 130, 1, 0)
         }):Play()
     end)
 end
 
--- Создаёт инфо-точку в конце элемента
+-- Создаёт инфо-точку в конце элемента (цвет = цвет темы, обновляется автоматически)
 local function AddInfoDot(parentFrame, tipText)
     tipText = tipText or ""
     local Dot = create("TextButton", {
@@ -184,10 +227,16 @@ local function AddInfoDot(parentFrame, tipText)
     Dot.MouseButton1Click:Connect(function()
         ShowInfo(tipText)
     end)
+
+    RegisterThemed(function(color)
+        Dot.TextColor3 = color
+    end)
+
     return Dot
 end
 
-function Scrp.Name(name)
+-- Задаёт название окна + тему (1-6 цвет, 7 или "rainbow" = радужная)
+function Scrp.Name(name, theme)
     name = name or "Window"
     if not CurrentMain then
         warn("Scrp.Name: сначала вызови Scrp.CreateWindowLib()")
@@ -211,9 +260,26 @@ function Scrp.Name(name)
         TitleLabel.Text = name
     end
 
+    if theme ~= nil then
+        if theme == 7 or (type(theme) == "string" and theme:lower() == "rainbow") then
+            IsRainbow = true
+            print("Scrp: тема установлена — Радужная")
+        elseif type(theme) == "number" and theme >= 1 and theme <= 6 then
+            IsRainbow = false
+            CurrentThemeIndex = theme
+            print("Scrp: тема установлена — " .. ThemeNames[theme])
+        else
+            warn("Scrp.Name: неверная тема (укажи число 1-6 или 7/\"rainbow\"), применена тема по умолчанию")
+            IsRainbow = false
+            CurrentThemeIndex = 1
+        end
+        RefreshTheme()
+    end
+
     return TitleLabel
 end
 
+-- Создаёт новую вкладку слева
 function Scrp.LeftNewTab(name)
     name = name or "Tab"
     if not TabHolder or not ContentHolder then
@@ -257,22 +323,31 @@ function Scrp.LeftNewTab(name)
         PaddingRight = UDim.new(0, 10)
     })
 
+    local tabEntry = {Btn = TabBtn, Page = Page, Name = name, Active = false}
+
+    -- Цвет активной вкладки = цвет темы, неактивной — тёмно-серый (тема не влияет)
+    RegisterThemed(function(color)
+        TabBtn.BackgroundColor3 = tabEntry.Active and color or COLOR_INACTIVE
+    end)
+
     TabBtn.MouseButton1Click:Connect(function()
         for _, t in pairs(Tabs) do
+            t.Active = false
             t.Page.Visible = false
-            t.Btn.BackgroundColor3 = COLOR_INACTIVE
         end
+        tabEntry.Active = true
         Page.Visible = true
-        TabBtn.BackgroundColor3 = COLOR_ACTIVE
+        RefreshTheme()
     end)
 
     if firstTab then
         firstTab = false
+        tabEntry.Active = true
         Page.Visible = true
-        TabBtn.BackgroundColor3 = COLOR_ACTIVE
+        RefreshTheme()
     end
 
-    table.insert(Tabs, {Btn = TabBtn, Page = Page, Name = name})
+    table.insert(Tabs, tabEntry)
     CurrentPage = Page
 
     return Page
@@ -327,7 +402,7 @@ function Scrp.NewSlider(text, tip, max, min, callback)
     })
     create("UICorner", {CornerRadius = UDim.new(1,0), Parent = Fill})
 
-    AddInfoDot(SliderFrame, tip) -- инфо-точка в конце функции
+    AddInfoDot(SliderFrame, tip)
 
     local dragging = false
     local function update(io)
@@ -375,6 +450,7 @@ function Scrp.NewToggle(text, tip, callback)
 
     local state = false
     local expanded = false
+    local hasExtra = false -- есть ли внутри хоть один доп. элемент
 
     local ToggleFrame = create("Frame", {
         Parent = CurrentPage,
@@ -384,7 +460,7 @@ function Scrp.NewToggle(text, tip, callback)
     })
     create("UICorner", {CornerRadius = UDim.new(0,4), Parent = ToggleFrame})
 
-    -- Стрелка разворота (слева) — НЕ переключает состояние, только раскрывает панель
+    -- Стрелка разворота: работает ТОЛЬКО если внутри есть доп. элементы
     local Arrow = create("TextButton", {
         Parent = ToggleFrame,
         BackgroundTransparency = 1,
@@ -393,7 +469,7 @@ function Scrp.NewToggle(text, tip, callback)
         Font = Enum.Font.GothamBold,
         TextSize = 12,
         Text = ">",
-        TextColor3 = Color3.fromRGB(255, 255, 255)
+        TextColor3 = Color3.fromRGB(90, 90, 90) -- по умолчанию тусклая, пока нет доп. элементов
     })
 
     local Label = create("TextLabel", {
@@ -408,7 +484,6 @@ function Scrp.NewToggle(text, tip, callback)
         TextXAlignment = Enum.TextXAlignment.Left
     })
 
-    -- Переключатель (справа) — управляет ТОЛЬКО состоянием вкл/выкл
     local Switch = create("TextButton", {
         Parent = ToggleFrame,
         BackgroundColor3 = Color3.fromRGB(35, 35, 35),
@@ -425,9 +500,23 @@ function Scrp.NewToggle(text, tip, callback)
     })
     create("UICorner", {CornerRadius = UDim.new(1,0), Parent = Knob})
 
-    AddInfoDot(ToggleFrame, tip) -- инфо-точка в конце функции
+    AddInfoDot(ToggleFrame, tip)
 
-    -- Контейнер для доп. элементов (появляется при развороте)
+    -- Цвет свитча: включён = цвет темы, выключен = тёмно-серый
+    RegisterThemed(function(color)
+        if state then
+            Switch.BackgroundColor3 = color
+        end
+    end)
+
+    -- Цвет стрелки: включена функция = чёрная, выключена = светится цветом темы
+    -- (работает только если есть доп. элементы, иначе остаётся тусклой)
+    RegisterThemed(function(color)
+        if hasExtra then
+            Arrow.TextColor3 = state and Color3.fromRGB(0, 0, 0) or color
+        end
+    end)
+
     local ExtraHolder = create("Frame", {
         Parent = ToggleFrame,
         BackgroundTransparency = 1,
@@ -449,23 +538,32 @@ function Scrp.NewToggle(text, tip, callback)
 
     Switch.MouseButton1Click:Connect(function()
         state = not state
-        tweenService:Create(Switch, TweenInfo.new(0.15), {
-            BackgroundColor3 = state and Color3.fromRGB(255,255,255) or Color3.fromRGB(35,35,35)
-        }):Play()
+
+        if state then
+            Switch.BackgroundColor3 = GetThemeColor()
+        else
+            Switch.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        end
+
         tweenService:Create(Knob, TweenInfo.new(0.15), {
             Position = state and UDim2.new(1,-16,0.5,-7) or UDim2.new(0,2,0.5,-7),
             BackgroundColor3 = state and Color3.fromRGB(0,0,0) or Color3.fromRGB(255,255,255)
         }):Play()
+
+        if hasExtra then
+            Arrow.TextColor3 = state and Color3.fromRGB(0, 0, 0) or GetThemeColor()
+        end
+
         callback(state)
     end)
 
     Arrow.MouseButton1Click:Connect(function()
+        if not hasExtra then return end -- нечего раскрывать, стрелка не работает
         expanded = not expanded
         Arrow.Text = expanded and "v" or ">"
         refreshHeight()
     end)
 
-    -- Объект для добавления доп. элементов ВНУТРЬ тоггла
     local Extra = {}
 
     function Extra:NewSlider(subText, subTip, max, min, subCallback)
@@ -475,6 +573,9 @@ function Scrp.NewToggle(text, tip, callback)
         min = min or 0
         subCallback = subCallback or function() end
         local sdefault = min
+
+        hasExtra = true
+        Arrow.TextColor3 = state and Color3.fromRGB(0, 0, 0) or GetThemeColor()
 
         local SF = create("Frame", {
             Parent = ExtraHolder,
@@ -487,18 +588,19 @@ function Scrp.NewToggle(text, tip, callback)
             Parent = SF,
             BackgroundTransparency = 1,
             Position = UDim2.new(0, 8, 0, 2),
-            Size = UDim2.new(1, -30, 0, 14),
+            Size = UDim2.new(1, -34, 0, 14),
             Font = Enum.Font.Gotham, TextSize = 11,
             Text = subText .. ": " .. tostring(sdefault),
             TextColor3 = Color3.fromRGB(255, 255, 255),
             TextXAlignment = Enum.TextXAlignment.Left
         })
 
+        -- Полоска короче, чтобы точка информации помещалась справа
         local Bar = create("Frame", {
             Parent = SF,
             BackgroundColor3 = Color3.fromRGB(45, 45, 45),
             Position = UDim2.new(0, 8, 0, 22),
-            Size = UDim2.new(1, -16, 0, 5)
+            Size = UDim2.new(1, -34, 0, 5) -- было -16, стало -34 (короче)
         })
         create("UICorner", {CornerRadius = UDim.new(1,0), Parent = Bar})
 
