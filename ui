@@ -16,8 +16,6 @@ local CurrentPage = nil
 
 local WindowDragBlocked = false
 local InfoPanel = nil
-local infoShowToken = 0
-local infoVisible = false
 
 local COLOR_INACTIVE = Color3.fromRGB(18, 18, 18)
 local COLOR_ACTIVE   = Color3.fromRGB(45, 45, 45)
@@ -66,16 +64,6 @@ local function DraggingEnabled(frame, parent)
             dragging = false
         end
     end)
-end
-
--- Скрывает инфо-панель немедленно
-local function HideInfo()
-    if not InfoPanel or not infoVisible then return end
-    infoVisible = false
-    infoShowToken = infoShowToken + 1
-    tweenService:Create(InfoPanel, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-        Position = UDim2.new(0, 130, 1, 0)
-    }):Play()
 end
 
 -- ===== Создание окна =====
@@ -134,7 +122,7 @@ function Scrp.CreateWindowLib()
         Size = UDim2.new(1, -130, 1, -30)
     })
 
-    -- Панель инфо снизу
+    -- Панель для инфо (появляется снизу окна)
     InfoPanel = create("Frame", {
         Name = "InfoPanel", Parent = Main,
         BackgroundColor3 = Color3.fromRGB(25, 25, 25),
@@ -143,7 +131,7 @@ function Scrp.CreateWindowLib()
         ZIndex = 50
     })
     create("UICorner", {CornerRadius = UDim.new(0,4), Parent = InfoPanel})
-    create("TextLabel", {
+    local InfoText = create("TextLabel", {
         Name = "InfoText", Parent = InfoPanel,
         BackgroundTransparency = 1,
         Size = UDim2.new(1, -16, 1, 0),
@@ -155,34 +143,15 @@ function Scrp.CreateWindowLib()
         Text = ""
     })
 
-    -- Невидимая кнопка-ловушка на весь экран: клик в любое место -> скрыть инфо
-    local ClickCatcher = create("TextButton", {
-        Name = "ClickCatcher",
-        Parent = ScreenGui,
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 1, 0),
-        Text = "",
-        ZIndex = 0,
-        Visible = false
-    })
-    -- ловим клики глобально через InputBegan (работает без блокировки остальных кнопок)
-    input.InputBegan:Connect(function(io, gpe)
-        if io.UserInputType == Enum.UserInputType.MouseButton1 or io.UserInputType == Enum.UserInputType.Touch then
-            if infoVisible then
-                HideInfo()
-            end
-        end
-    end)
-
     return ScreenGui, Main
 end
 
--- Показывает всплывающую подсказку снизу на 2 секунды (или пока не кликнут в другое место)
+-- Показывает всплывающую подсказку снизу на 2 секунды
+local infoShowToken = 0
 local function ShowInfo(text)
     if not InfoPanel then return end
     infoShowToken = infoShowToken + 1
     local myToken = infoShowToken
-    infoVisible = true
 
     InfoPanel.InfoText.Text = text
     InfoPanel.Position = UDim2.new(0, 130, 1, 0)
@@ -192,7 +161,6 @@ local function ShowInfo(text)
 
     task.delay(2, function()
         if myToken ~= infoShowToken then return end
-        infoVisible = false
         tweenService:Create(InfoPanel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
             Position = UDim2.new(0, 130, 1, 0)
         }):Play()
@@ -211,8 +179,7 @@ local function AddInfoDot(parentFrame, tipText)
         Font = Enum.Font.GothamBold,
         TextSize = 18,
         Text = "•",
-        TextColor3 = Color3.fromRGB(150, 150, 150),
-        ZIndex = 10
+        TextColor3 = Color3.fromRGB(150, 150, 150)
     })
     Dot.MouseButton1Click:Connect(function()
         ShowInfo(tipText)
@@ -395,7 +362,7 @@ function Scrp.NewSlider(text, tip, max, min, callback)
     return SliderFrame
 end
 
--- ===== ТОГГЛ (с разворотом для доп. элементов: слайдер И кнопка) =====
+-- ===== ТОГГЛ (с разворотом для доп. элементов) =====
 function Scrp.NewToggle(text, tip, callback)
     text = text or "Toggle"
     tip = tip or ""
@@ -497,7 +464,6 @@ function Scrp.NewToggle(text, tip, callback)
 
     local Extra = {}
 
-    -- Доп. слайдер внутри тоггла
     function Extra:NewSlider(subText, subTip, max, min, subCallback)
         subText = subText or "Slider"
         subTip = subTip or ""
@@ -573,40 +539,6 @@ function Scrp.NewToggle(text, tip, callback)
 
         refreshHeight()
         return SF
-    end
-
-    -- Доп. кнопка внутри тоггла (новое)
-    function Extra:NewButton(subText, subTip, subCallback)
-        subText = subText or "Button"
-        subTip = subTip or ""
-        subCallback = subCallback or function() end
-
-        local BF = create("TextButton", {
-            Parent = ExtraHolder,
-            BackgroundColor3 = Color3.fromRGB(28, 28, 28),
-            Size = UDim2.new(1, 0, 0, 30),
-            AutoButtonColor = false,
-            Font = Enum.Font.Gotham,
-            TextSize = 12,
-            Text = subText,
-            TextColor3 = Color3.fromRGB(255, 255, 255)
-        })
-        create("UICorner", {CornerRadius = UDim.new(0,4), Parent = BF})
-
-        AddInfoDot(BF, subTip)
-
-        BF.MouseButton1Click:Connect(function()
-            subCallback()
-        end)
-        BF.MouseEnter:Connect(function()
-            tweenService:Create(BF, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(45,45,45)}):Play()
-        end)
-        BF.MouseLeave:Connect(function()
-            tweenService:Create(BF, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(28,28,28)}):Play()
-        end)
-
-        refreshHeight()
-        return BF
     end
 
     return Extra
