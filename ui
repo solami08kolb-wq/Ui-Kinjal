@@ -398,7 +398,7 @@ function Scrp.NewSlider(text, tip, max, min, callback)
     return SliderFrame
 end
 
--- ===== КНОПКА =====
+-- ===== КНОПКА (с разворотом для доп. элементов, как у тоггла) =====
 function Scrp.NewButton(text, tip, callback)
     text = text or "Button"
     tip = tip or ""
@@ -409,20 +409,43 @@ function Scrp.NewButton(text, tip, callback)
         return
     end
 
-    local ButtonFrame = create("TextButton", {
+    local expanded = false
+    local hasExtra = false
+
+    local ButtonFrame = create("Frame", {
         Parent = CurrentPage,
         BackgroundColor3 = Color3.fromRGB(20, 20, 20),
         Size = UDim2.new(1, 0, 0, 34),
-        AutoButtonColor = false,
-        Text = ""
+        ClipsDescendants = true
     })
     create("UICorner", {CornerRadius = UDim.new(0,4), Parent = ButtonFrame})
 
-    local Label = create("TextLabel", {
+    local Arrow = create("TextButton", {
+        Parent = ButtonFrame,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 6, 0, 0),
+        Size = UDim2.new(0, 20, 0, 34),
+        Font = Enum.Font.GothamBold,
+        TextSize = 12,
+        Text = ">",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        Visible = false
+    })
+
+    -- Кликабельная зона самой кнопки (текст + фон), не залезает на инфо-точку
+    local ClickArea = create("TextButton", {
         Parent = ButtonFrame,
         BackgroundTransparency = 1,
         Position = UDim2.new(0, 10, 0, 0),
-        Size = UDim2.new(1, -40, 1, 0),
+        Size = UDim2.new(1, -40, 0, 34),
+        AutoButtonColor = false,
+        Text = ""
+    })
+
+    local Label = create("TextLabel", {
+        Parent = ClickArea,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 1, 0),
         Font = Enum.Font.Gotham,
         TextSize = 14,
         Text = text,
@@ -432,14 +455,48 @@ function Scrp.NewButton(text, tip, callback)
 
     AddInfoDot(ButtonFrame, tip)
 
-    ButtonFrame.MouseEnter:Connect(function()
+    local ExtraHolder = create("Frame", {
+        Parent = ButtonFrame,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 28, 0, 34),
+        Size = UDim2.new(1, -38, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y
+    })
+    create("UIListLayout", {
+        Parent = ExtraHolder,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 6)
+    })
+    create("UIPadding", {Parent = ExtraHolder, PaddingBottom = UDim.new(0, 8)})
+
+    local function refreshHeight()
+        local extraH = expanded and (ExtraHolder.AbsoluteSize.Y + 34) or 34
+        tweenService:Create(ButtonFrame, TweenInfo.new(0.15), {Size = UDim2.new(1,0,0,extraH)}):Play()
+    end
+
+    local function EnableArrow()
+        if hasExtra then return end
+        hasExtra = true
+        Arrow.Visible = true
+        Label.Parent.Position = UDim2.new(0, 28, 0, 0)
+        Label.Parent.Size = UDim2.new(1, -58, 0, 34)
+    end
+
+    Arrow.MouseButton1Click:Connect(function()
+        if not hasExtra then return end
+        expanded = not expanded
+        Arrow.Text = expanded and "v" or ">"
+        refreshHeight()
+    end)
+
+    ClickArea.MouseEnter:Connect(function()
         tweenService:Create(ButtonFrame, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(28, 28, 28)}):Play()
     end)
-    ButtonFrame.MouseLeave:Connect(function()
+    ClickArea.MouseLeave:Connect(function()
         tweenService:Create(ButtonFrame, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(20, 20, 20)}):Play()
     end)
 
-    ButtonFrame.MouseButton1Click:Connect(function()
+    ClickArea.MouseButton1Click:Connect(function()
         tweenService:Create(ButtonFrame, TweenInfo.new(0.08), {BackgroundColor3 = Color3.fromRGB(45, 45, 45)}):Play()
         task.delay(0.08, function()
             tweenService:Create(ButtonFrame, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(20, 20, 20)}):Play()
@@ -447,7 +504,150 @@ function Scrp.NewButton(text, tip, callback)
         callback()
     end)
 
-    return ButtonFrame
+    local Extra = {}
+
+    -- Вложенный слайдер внутри кнопки
+    function Extra:NewSlider(subText, subTip, max, min, subCallback)
+        subText = subText or "Slider"
+        subTip = subTip or ""
+        max = max or 100
+        min = min or 0
+        subCallback = subCallback or function() end
+        local sdefault = min
+
+        EnableArrow()
+
+        local SF = create("Frame", {
+            Parent = ExtraHolder,
+            BackgroundColor3 = Color3.fromRGB(28, 28, 28),
+            Size = UDim2.new(1, 0, 0, 36)
+        })
+        create("UICorner", {CornerRadius = UDim.new(0,4), Parent = SF})
+
+        local L = create("TextLabel", {
+            Parent = SF,
+            BackgroundTransparency = 1,
+            Position = UDim2.new(0, 8, 0, 2),
+            Size = UDim2.new(1, -34, 0, 14),
+            Font = Enum.Font.Gotham, TextSize = 12,
+            Text = subText .. ": " .. tostring(sdefault),
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+            TextXAlignment = Enum.TextXAlignment.Left
+        })
+
+        local Bar = create("Frame", {
+            Parent = SF,
+            BackgroundColor3 = Color3.fromRGB(45, 45, 45),
+            Position = UDim2.new(0, 8, 0, 22),
+            Size = UDim2.new(1, -34, 0, 5)
+        })
+        create("UICorner", {CornerRadius = UDim.new(1,0), Parent = Bar})
+
+        local Fill = create("Frame", {
+            Parent = Bar,
+            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+            Size = UDim2.new((sdefault - min) / (max - min), 0, 1, 0)
+        })
+        create("UICorner", {CornerRadius = UDim.new(1,0), Parent = Fill})
+
+        AddInfoDot(SF, subTip)
+
+        local dragging2 = false
+        local function update(io)
+            local rel = math.clamp((io.Position.X - Bar.AbsolutePosition.X) / Bar.AbsoluteSize.X, 0, 1)
+            local v = math.floor(min + (max - min) * rel)
+            Fill.Size = UDim2.new(rel, 0, 1, 0)
+            L.Text = subText .. ": " .. tostring(v)
+            subCallback(v)
+        end
+
+        Bar.InputBegan:Connect(function(io)
+            if io.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging2 = true
+                WindowDragBlocked = true
+                update(io)
+            end
+        end)
+        input.InputChanged:Connect(function(io)
+            if dragging2 and io.UserInputType == Enum.UserInputType.MouseMovement then
+                update(io)
+            end
+        end)
+        input.InputEnded:Connect(function(io)
+            if io.UserInputType == Enum.UserInputType.MouseButton1 then
+                if dragging2 then
+                    dragging2 = false
+                    WindowDragBlocked = false
+                end
+            end
+        end)
+
+        refreshHeight()
+        return SF
+    end
+
+    -- Вложенный тоггл внутри кнопки
+    function Extra:NewToggle(subText, subTip, subCallback)
+        subText = subText or "Toggle"
+        subTip = subTip or ""
+        subCallback = subCallback or function() end
+        local state = false
+
+        EnableArrow()
+
+        local TF = create("Frame", {
+            Parent = ExtraHolder,
+            BackgroundColor3 = Color3.fromRGB(28, 28, 28),
+            Size = UDim2.new(1, 0, 0, 30)
+        })
+        create("UICorner", {CornerRadius = UDim.new(0,4), Parent = TF})
+
+        local L = create("TextLabel", {
+            Parent = TF,
+            BackgroundTransparency = 1,
+            Position = UDim2.new(0, 8, 0, 0),
+            Size = UDim2.new(1, -60, 1, 0),
+            Font = Enum.Font.Gotham, TextSize = 12,
+            Text = subText,
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+            TextXAlignment = Enum.TextXAlignment.Left
+        })
+
+        local Switch = create("TextButton", {
+            Parent = TF,
+            BackgroundColor3 = Color3.fromRGB(45, 45, 45),
+            Position = UDim2.new(1, -54, 0.5, -8),
+            Size = UDim2.new(0, 30, 0, 16),
+            Text = "", AutoButtonColor = false
+        })
+        create("UICorner", {CornerRadius = UDim.new(1,0), Parent = Switch})
+        local Knob = create("Frame", {
+            Parent = Switch,
+            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+            Position = UDim2.new(0, 2, 0.5, -6),
+            Size = UDim2.new(0, 12, 0, 12)
+        })
+        create("UICorner", {CornerRadius = UDim.new(1,0), Parent = Knob})
+
+        AddInfoDot(TF, subTip)
+
+        Switch.MouseButton1Click:Connect(function()
+            state = not state
+            tweenService:Create(Switch, TweenInfo.new(0.15), {
+                BackgroundColor3 = state and Color3.fromRGB(255,255,255) or Color3.fromRGB(45,45,45)
+            }):Play()
+            tweenService:Create(Knob, TweenInfo.new(0.15), {
+                Position = state and UDim2.new(1,-14,0.5,-6) or UDim2.new(0,2,0.5,-6),
+                BackgroundColor3 = state and Color3.fromRGB(0,0,0) or Color3.fromRGB(255,255,255)
+            }):Play()
+            subCallback(state)
+        end)
+
+        refreshHeight()
+        return TF
+    end
+
+    return Extra
 end
 
 -- ===== ТОГГЛ (с разворотом для доп. элементов) =====
