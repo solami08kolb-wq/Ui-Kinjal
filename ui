@@ -398,6 +398,58 @@ function Scrp.NewSlider(text, tip, max, min, callback)
     return SliderFrame
 end
 
+-- ===== КНОПКА =====
+function Scrp.NewButton(text, tip, callback)
+    text = text or "Button"
+    tip = tip or ""
+    callback = callback or function() end
+
+    if not CurrentPage then
+        warn("Scrp.NewButton: сначала вызови Scrp.LeftNewTab(\"name\")")
+        return
+    end
+
+    local ButtonFrame = create("TextButton", {
+        Parent = CurrentPage,
+        BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+        Size = UDim2.new(1, 0, 0, 34),
+        AutoButtonColor = false,
+        Text = ""
+    })
+    create("UICorner", {CornerRadius = UDim.new(0,4), Parent = ButtonFrame})
+
+    local Label = create("TextLabel", {
+        Parent = ButtonFrame,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 10, 0, 0),
+        Size = UDim2.new(1, -40, 1, 0),
+        Font = Enum.Font.Gotham,
+        TextSize = 14,
+        Text = text,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextXAlignment = Enum.TextXAlignment.Left
+    })
+
+    AddInfoDot(ButtonFrame, tip)
+
+    ButtonFrame.MouseEnter:Connect(function()
+        tweenService:Create(ButtonFrame, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(28, 28, 28)}):Play()
+    end)
+    ButtonFrame.MouseLeave:Connect(function()
+        tweenService:Create(ButtonFrame, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(20, 20, 20)}):Play()
+    end)
+
+    ButtonFrame.MouseButton1Click:Connect(function()
+        tweenService:Create(ButtonFrame, TweenInfo.new(0.08), {BackgroundColor3 = Color3.fromRGB(45, 45, 45)}):Play()
+        task.delay(0.08, function()
+            tweenService:Create(ButtonFrame, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(20, 20, 20)}):Play()
+        end)
+        callback()
+    end)
+
+    return ButtonFrame
+end
+
 -- ===== ТОГГЛ (с разворотом для доп. элементов) =====
 function Scrp.NewToggle(text, tip, callback)
     text = text or "Toggle"
