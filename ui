@@ -398,6 +398,62 @@ function Scrp.NewSlider(text, tip, max, min, callback)
     return SliderFrame
 end
 
+-- ===== НОВАЯ КНОПКА =====
+-- Использование: Scrp.NewButton("ButtonText", "ButtonInfo", function() print("Clicked") end)
+function Scrp.NewButton(text, tip, callback)
+    text = text or "Button"
+    tip = tip or ""
+    callback = callback or function() end
+
+    if not CurrentPage then
+        warn("Scrp.NewButton: сначала вызови Scrp.LeftNewTab(\"name\")")
+        return
+    end
+
+    local ButtonFrame = create("Frame", {
+        Parent = CurrentPage,
+        BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+        Size = UDim2.new(1, 0, 0, 34)
+    })
+    create("UICorner", {CornerRadius = UDim.new(0,4), Parent = ButtonFrame})
+
+    local Btn = create("TextButton", {
+        Name = text .. "Btn",
+        Parent = ButtonFrame,
+        BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+        Position = UDim2.new(0, 10, 0, 6),
+        Size = UDim2.new(1, -34, 0, 22), -- оставляем место под InfoDot справа
+        Font = Enum.Font.Gotham,
+        TextSize = 14,
+        Text = text,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        AutoButtonColor = false
+    })
+    create("UICorner", {CornerRadius = UDim.new(0,4), Parent = Btn})
+
+    -- Hover effect
+    Btn.MouseEnter:Connect(function()
+        tweenService:Create(Btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(45,45,45)}):Play()
+    end)
+    Btn.MouseLeave:Connect(function()
+        tweenService:Create(Btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(35,35,35)}):Play()
+    end)
+
+    -- Click
+    Btn.MouseButton1Click:Connect(function()
+        -- небольшая обратная анимация при клике (нажато)
+        tweenService:Create(Btn, TweenInfo.new(0.06), {BackgroundColor3 = Color3.fromRGB(50,50,50)}):Play()
+        task.delay(0.06, function()
+            tweenService:Create(Btn, TweenInfo.new(0.06), {BackgroundColor3 = Color3.fromRGB(45,45,45)}):Play()
+        end)
+        pcall(function() callback() end)
+    end)
+
+    AddInfoDot(ButtonFrame, tip)
+
+    return ButtonFrame
+end
+
 -- ===== ТОГГЛ (с разворотом для доп. элементов) =====
 function Scrp.NewToggle(text, tip, callback)
     text = text or "Toggle"
