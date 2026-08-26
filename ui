@@ -15,7 +15,7 @@ local firstTab = true
 local CurrentPage = nil
 
 local WindowDragBlocked = false
-local InfoPanel = nil
+local InfoPanel = nil -- всплывающая панель снизу
 
 local COLOR_INACTIVE = Color3.fromRGB(18, 18, 18)
 local COLOR_ACTIVE   = Color3.fromRGB(45, 45, 45)
@@ -126,7 +126,7 @@ function Scrp.CreateWindowLib()
     InfoPanel = create("Frame", {
         Name = "InfoPanel", Parent = Main,
         BackgroundColor3 = Color3.fromRGB(25, 25, 25),
-        Position = UDim2.new(0, 130, 1, 0),
+        Position = UDim2.new(0, 130, 1, 0), -- скрыта под окном
         Size = UDim2.new(1, -130, 0, 36),
         ZIndex = 50
     })
@@ -160,7 +160,7 @@ local function ShowInfo(text)
     }):Play()
 
     task.delay(2, function()
-        if myToken ~= infoShowToken then return end
+        if myToken ~= infoShowToken then return end -- если открыли новую подсказку, не закрываем её раньше времени
         tweenService:Create(InfoPanel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
             Position = UDim2.new(0, 130, 1, 0)
         }):Play()
@@ -327,7 +327,7 @@ function Scrp.NewSlider(text, tip, max, min, callback)
     })
     create("UICorner", {CornerRadius = UDim.new(1,0), Parent = Fill})
 
-    AddInfoDot(SliderFrame, tip)
+    AddInfoDot(SliderFrame, tip) -- инфо-точка в конце функции
 
     local dragging = false
     local function update(io)
@@ -384,6 +384,7 @@ function Scrp.NewToggle(text, tip, callback)
     })
     create("UICorner", {CornerRadius = UDim.new(0,4), Parent = ToggleFrame})
 
+    -- Стрелка разворота (слева) — НЕ переключает состояние, только раскрывает панель
     local Arrow = create("TextButton", {
         Parent = ToggleFrame,
         BackgroundTransparency = 1,
@@ -407,6 +408,7 @@ function Scrp.NewToggle(text, tip, callback)
         TextXAlignment = Enum.TextXAlignment.Left
     })
 
+    -- Переключатель (справа) — управляет ТОЛЬКО состоянием вкл/выкл
     local Switch = create("TextButton", {
         Parent = ToggleFrame,
         BackgroundColor3 = Color3.fromRGB(35, 35, 35),
@@ -423,8 +425,9 @@ function Scrp.NewToggle(text, tip, callback)
     })
     create("UICorner", {CornerRadius = UDim.new(1,0), Parent = Knob})
 
-    AddInfoDot(ToggleFrame, tip)
+    AddInfoDot(ToggleFrame, tip) -- инфо-точка в конце функции
 
+    -- Контейнер для доп. элементов (появляется при развороте)
     local ExtraHolder = create("Frame", {
         Parent = ToggleFrame,
         BackgroundTransparency = 1,
@@ -462,6 +465,7 @@ function Scrp.NewToggle(text, tip, callback)
         refreshHeight()
     end)
 
+    -- Объект для добавления доп. элементов ВНУТРЬ тоггла
     local Extra = {}
 
     function Extra:NewSlider(subText, subTip, max, min, subCallback)
