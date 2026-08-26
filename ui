@@ -20,6 +20,9 @@ local InfoPanel = nil -- всплывающая панель снизу
 local COLOR_INACTIVE = Color3.fromRGB(18, 18, 18)
 local COLOR_ACTIVE   = Color3.fromRGB(45, 45, 45)
 
+local WINDOW_SIZE = UDim2.new(0, 600, 0, 280)
+local WINDOW_POS  = UDim2.new(0.5, -300, 0.5, -140)
+
 local function create(class, props)
     local o = Instance.new(class)
     for k, v in pairs(props) do o[k] = v end
@@ -82,16 +85,58 @@ function Scrp.CreateWindowLib()
         Name = "Main", Parent = ScreenGui,
         BackgroundColor3 = Color3.fromRGB(0, 0, 0),
         ClipsDescendants = true,
-        Position = UDim2.new(0.5, -300, 0.5, -140),
-        Size = UDim2.new(0, 600, 0, 280)
+        Position = WINDOW_POS,
+        Size = WINDOW_SIZE,
+        AnchorPoint = Vector2.new(0, 0)
     })
     create("UICorner", {CornerRadius = UDim.new(0,6), Parent = Main})
 
     DraggingEnabled(Main, Main)
 
+    -- Анимация открытия/закрытия на P (сжатие/разворот к центру окна)
+    local isOpen = true
+    local animating = false
+
     input.InputBegan:Connect(function(io, gpe)
-        if not gpe and io.KeyCode == Enum.KeyCode.P then
-            ScreenGui.Enabled = not ScreenGui.Enabled
+        if not gpe and io.KeyCode == Enum.KeyCode.P and not animating then
+            animating = true
+
+            if isOpen then
+                -- Закрытие: сжимаем к центру текущей позиции
+                local centerX = Main.Position.X.Offset + Main.Size.X.Offset / 2
+                local centerY = Main.Position.Y.Offset + Main.Size.Y.Offset / 2
+
+                local tw = tweenService:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                    Size = UDim2.new(0, 0, 0, 0),
+                    Position = UDim2.new(0, centerX, 0, centerY)
+                })
+                tw:Play()
+                tw.Completed:Connect(function()
+                    Main.Visible = false
+                    isOpen = false
+                    animating = false
+                end)
+            else
+                -- Открытие: разворачиваем обратно из центра
+                local targetSize = WINDOW_SIZE
+                local centerX = Main.Position.X.Offset -- уже стоит в центре (после закрытия)
+                local centerY = Main.Position.Y.Offset
+
+                Main.Visible = true
+                Main.Size = UDim2.new(0, 0, 0, 0)
+                -- позиция остаётся там, где было "схлопывание"
+                local targetPos = UDim2.new(0, centerX - targetSize.X.Offset/2, 0, centerY - targetSize.Y.Offset/2)
+
+                local tw = tweenService:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    Size = targetSize,
+                    Position = targetPos
+                })
+                tw:Play()
+                tw.Completed:Connect(function()
+                    isOpen = true
+                    animating = false
+                end)
+            end
         end
     end)
 
@@ -126,7 +171,7 @@ function Scrp.CreateWindowLib()
     InfoPanel = create("Frame", {
         Name = "InfoPanel", Parent = Main,
         BackgroundColor3 = Color3.fromRGB(25, 25, 25),
-        Position = UDim2.new(0, 130, 1, 0), -- скрыта под окном
+        Position = UDim2.new(0, 130, 1, 0),
         Size = UDim2.new(1, -130, 0, 36),
         ZIndex = 50
     })
@@ -160,7 +205,7 @@ local function ShowInfo(text)
     }):Play()
 
     task.delay(2, function()
-        if myToken ~= infoShowToken then return end -- если открыли новую подсказку, не закрываем её раньше времени
+        if myToken ~= infoShowToken then return end
         tweenService:Create(InfoPanel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
             Position = UDim2.new(0, 130, 1, 0)
         }):Play()
@@ -327,7 +372,7 @@ function Scrp.NewSlider(text, tip, max, min, callback)
     })
     create("UICorner", {CornerRadius = UDim.new(1,0), Parent = Fill})
 
-    AddInfoDot(SliderFrame, tip) -- инфо-точка в конце функции
+    AddInfoDot(SliderFrame, tip)
 
     local dragging = false
     local function update(io)
@@ -375,6 +420,7 @@ function Scrp.NewToggle(text, tip, callback)
 
     local state = false
     local expanded = false
+    local hasExtra = false -- есть ли внутри хоть один доп. элемент
 
     local ToggleFrame = create("Frame", {
         Parent = CurrentPage,
@@ -384,7 +430,7 @@ function Scrp.NewToggle(text, tip, callback)
     })
     create("UICorner", {CornerRadius = UDim.new(0,4), Parent = ToggleFrame})
 
-    -- Стрелка разворота (слева) — НЕ переключает состояние, только раскрывает панель
+    -- Стрелка разворота — создаётся, но скрыта, пока нет доп. элементов
     local Arrow = create("TextButton", {
         Parent = ToggleFrame,
         BackgroundTransparency = 1,
@@ -393,14 +439,16 @@ function Scrp.NewToggle(text, tip, callback)
         Font = Enum.Font.GothamBold,
         TextSize = 12,
         Text = ">",
-        TextColor3 = Color3.fromRGB(255, 255, 255)
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        Visible = false -- скрыта по умолчанию
     })
 
+    -- Надпись стоит вплотную к краю, пока нет стрелки
     local Label = create("TextLabel", {
         Parent = ToggleFrame,
         BackgroundTransparency = 1,
-        Position = UDim2.new(0, 28, 0, 0),
-        Size = UDim2.new(1, -95, 0, 34),
+        Position = UDim2.new(0, 10, 0, 0),
+        Size = UDim2.new(1, -77, 0, 34),
         Font = Enum.Font.Gotham,
         TextSize = 13,
         Text = text,
@@ -408,7 +456,6 @@ function Scrp.NewToggle(text, tip, callback)
         TextXAlignment = Enum.TextXAlignment.Left
     })
 
-    -- Переключатель (справа) — управляет ТОЛЬКО состоянием вкл/выкл
     local Switch = create("TextButton", {
         Parent = ToggleFrame,
         BackgroundColor3 = Color3.fromRGB(35, 35, 35),
@@ -425,9 +472,8 @@ function Scrp.NewToggle(text, tip, callback)
     })
     create("UICorner", {CornerRadius = UDim.new(1,0), Parent = Knob})
 
-    AddInfoDot(ToggleFrame, tip) -- инфо-точка в конце функции
+    AddInfoDot(ToggleFrame, tip)
 
-    -- Контейнер для доп. элементов (появляется при развороте)
     local ExtraHolder = create("Frame", {
         Parent = ToggleFrame,
         BackgroundTransparency = 1,
@@ -447,6 +493,15 @@ function Scrp.NewToggle(text, tip, callback)
         tweenService:Create(ToggleFrame, TweenInfo.new(0.15), {Size = UDim2.new(1,0,0,extraH)}):Play()
     end
 
+    -- Активирует стрелку и сдвигает текст (вызывается один раз, при первом добавлении доп. элемента)
+    local function EnableArrow()
+        if hasExtra then return end
+        hasExtra = true
+        Arrow.Visible = true
+        Label.Position = UDim2.new(0, 28, 0, 0)
+        Label.Size = UDim2.new(1, -95, 0, 34)
+    end
+
     Switch.MouseButton1Click:Connect(function()
         state = not state
         tweenService:Create(Switch, TweenInfo.new(0.15), {
@@ -460,12 +515,12 @@ function Scrp.NewToggle(text, tip, callback)
     end)
 
     Arrow.MouseButton1Click:Connect(function()
+        if not hasExtra then return end
         expanded = not expanded
         Arrow.Text = expanded and "v" or ">"
         refreshHeight()
     end)
 
-    -- Объект для добавления доп. элементов ВНУТРЬ тоггла
     local Extra = {}
 
     function Extra:NewSlider(subText, subTip, max, min, subCallback)
@@ -475,6 +530,8 @@ function Scrp.NewToggle(text, tip, callback)
         min = min or 0
         subCallback = subCallback or function() end
         local sdefault = min
+
+        EnableArrow() -- теперь у тоггла есть содержимое — показываем стрелку
 
         local SF = create("Frame", {
             Parent = ExtraHolder,
